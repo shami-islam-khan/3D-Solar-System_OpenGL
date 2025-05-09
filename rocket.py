@@ -15,9 +15,13 @@ REPAIR_TIME = 15  # Seconds
 repair_timer = 0
 repair_progress = 0
 REPAIR_ITEMS_NEEDED = 3
+MAX_REPAIR_ITEMS = 15  # Maximum simultaneous repair items
+REPAIR_SPAWN_INTERVAL = 2.0
+last_repair_spawn = 0  # Time of last repair item spawn
 
 # Add to the constants section
-REPAIR_ITEM_RADIUS = 8.0
+REPAIR_ITEM_RADIUS = 10.0
+REPAIR_ITEM_COLOR = [0.0, 1.0, 0.0]  # Green
 REPAIR_HUD_COLOR = [0.2, 0.8, 0.2]  # Green
 
 mission_start_time = None  # Time when the mission starts
@@ -292,22 +296,41 @@ def generate_closer_meteors():
         z = rocket_pos[2] - random.uniform(200, METEOR_SPAWN_DISTANCE)  # Random z offset ahead of the rocket
         meteors.append([x, y, z])
 
+def generate_repair_items():
+    """Generates repair items ahead of the rocket"""
+    global broken_parts, last_repair_spawn
+    
+    current_time = time.time()
+    if current_time - last_repair_spawn > REPAIR_SPAWN_INTERVAL:
+        last_repair_spawn = current_time
+        while len(broken_parts) < MAX_REPAIR_ITEMS:
+            x = rocket_pos[0] + random.uniform(-150, 150)
+            y = rocket_pos[1] + random.uniform(-150, 150)
+            z = rocket_pos[2] - random.uniform(200, 800)
+            broken_parts.append([x, y, z])
+
 def start_repair_minigame():
     """Initialize repair game elements"""
-    global repair_mode, broken_parts, repair_timer, repair_progress
+    global repair_mode, repair_timer, repair_progress
     repair_mode = True
     repair_timer = time.time()
     repair_progress = 0
+    broken_parts.clear()  # Start with empty list
+
+# def start_repair_minigame():
+#     """Initialize repair game elements"""
+#     global repair_mode, broken_parts, repair_timer, repair_progress
+#     repair_mode = True
+#     repair_timer = time.time()
+#     repair_progress = 0
     
-    # Spawn 3 repair parts around the rocket
-    broken_parts = []
-    for _ in range(REPAIR_ITEMS_NEEDED):
-        angle = random.uniform(0, 2*math.pi)
-        distance = random.uniform(15, 40)
-        x = rocket_pos[0] + distance * math.cos(angle)
-        y = rocket_pos[1] + random.uniform(-10, 10)
-        z = rocket_pos[2] + distance * math.sin(angle)
-        broken_parts.append([x, y, z])
+#     # Spawn repair items using meteor-style positioning
+#     broken_parts = []
+#     for _ in range(REPAIR_ITEMS_NEEDED):
+#         x = rocket_pos[0] + random.uniform(-50, 50)
+#         y = rocket_pos[1] + random.uniform(-50, 50)
+#         z = rocket_pos[2] - random.uniform(150, 300)  # Spawn in front of rocket
+#         broken_parts.append([x, y, z])
 
 def initialize_stars():
     """Populates the 'stars' list with random 3D coordinates."""
@@ -793,16 +816,12 @@ def draw_mission_planet():
         glPopMatrix()
 
 def draw_repair_items():
-    """Draw floating repair components"""
+    """Draw repair items using meteor visualization"""
+    glColor3f(REPAIR_ITEM_COLOR[0], REPAIR_ITEM_COLOR[1], REPAIR_ITEM_COLOR[2])  # Color for repair items
     for part in broken_parts:
         glPushMatrix()
-        glTranslatef(part[0], part[1], part[2])
-        # Solid sphere with emission effect
-        glColor3f(1.0, 0.3, 0.0)  # Brighter orange
-        glutSolidSphere(REPAIR_ITEM_RADIUS, 20, 20)  # More detail
-        # Add wireframe outline for visibility
-        glColor3f(1.0, 0.8, 0.0)
-        glutWireSphere(REPAIR_ITEM_RADIUS * 1.1, 16, 16)
+        glTranslatef(*part)
+        glutSolidSphere(REPAIR_ITEM_RADIUS, 20, 20)
         glPopMatrix()
 
 def draw_repair_hud():
@@ -831,15 +850,15 @@ def draw_game_over():
 
 
 def check_repair_collision():
-    """Check if rocket collects repair items"""
+    """Meteor-style collision detection"""
     global repair_progress, broken_parts
     for part in broken_parts[:]:
-        distance = math.sqrt(
-            (rocket_pos[0]-part[0])**2 +
-            (rocket_pos[1]-part[1])**2 +
-            (rocket_pos[2]-part[2])**2
-        )
-        if distance < REPAIR_ITEM_RADIUS + 5:
+        dx = rocket_pos[0] - part[0]
+        dy = rocket_pos[1] - part[1]
+        dz = rocket_pos[2] - part[2]
+        distance = math.sqrt(dx*dx + dy*dy + dz*dz)
+        
+        if distance < REPAIR_ITEM_RADIUS + 15:  # Similar collision range to meteors
             repair_progress += 1
             broken_parts.remove(part)
   
@@ -864,6 +883,16 @@ def update_meteors():
     # Generate new meteors to maintain the count
     generate_meteors()
     generate_closer_meteors()
+
+def update_repair_items():
+    """Updates repair items and removes old ones"""
+    global broken_parts
+    
+    # Remove items behind the rocket
+    broken_parts = [part for part in broken_parts if part[2] < rocket_pos[2] - STAR_DESPAWN_DISTANCE]
+    
+    # Generate new items
+    generate_repair_items()
 
 def check_collisions():
     """Checks for collisions between the rocket and meteors."""
@@ -1142,6 +1171,9 @@ def idle():
             return
     if repair_mode:
         # Check timer
+        update_repair_items()
+        
+        # Check timer
         if time.time() - repair_timer > REPAIR_TIME:
             repair_mode = False
             rocket_health = 0
@@ -1150,11 +1182,11 @@ def idle():
         # Check completion
         if repair_progress >= REPAIR_ITEMS_NEEDED:
             repair_mode = False
-            rocket_health += 2  # Reward player
-            if rocket_health > 10: rocket_health = 10
+            rocket_health += 2
+            if rocket_health > 10: 
+                rocket_health = 10
         
         check_repair_collision()
-
         glutPostRedisplay()
 
 
