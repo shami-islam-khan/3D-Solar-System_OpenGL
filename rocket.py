@@ -15,7 +15,7 @@ REPAIR_TIME = 15  # Seconds
 repair_timer = 0
 repair_progress = 0
 REPAIR_ITEMS_NEEDED = 3
-MAX_REPAIR_ITEMS = 15  # Maximum simultaneous repair items
+MAX_REPAIR_ITEMS = 3  # Maximum simultaneous repair items
 REPAIR_SPAWN_INTERVAL = 2.0
 last_repair_spawn = 0  # Time of last repair item spawn
 
@@ -815,13 +815,60 @@ def draw_mission_planet():
         glutSolidSphere(MISSION_PLANET_RADIUS, 32, 32)  # Render the planet
         glPopMatrix()
 
+# def draw_repair_items():
+#     """Draw repair items using meteor visualization"""
+#     glColor3f(REPAIR_ITEM_COLOR[0], REPAIR_ITEM_COLOR[1], REPAIR_ITEM_COLOR[2])  # Color for repair items
+#     for part in broken_parts:
+#         glPushMatrix()
+#         glTranslatef(*part)
+#         glutSolidSphere(REPAIR_ITEM_RADIUS, 20, 20)
+#         glPopMatrix()
+
 def draw_repair_items():
-    """Draw repair items using meteor visualization"""
-    glColor3f(REPAIR_ITEM_COLOR[0], REPAIR_ITEM_COLOR[1], REPAIR_ITEM_COLOR[2])  # Color for repair items
+    """Draw complex animated repair items with multiple components"""
+    current_time = time.time()
+    
     for part in broken_parts:
         glPushMatrix()
         glTranslatef(*part)
-        glutSolidSphere(REPAIR_ITEM_RADIUS, 20, 20)
+        
+        # Base pulsating sphere
+        pulse = math.sin(current_time * 8) * 0.2 + 1.0
+        glPushMatrix()
+        glScalef(pulse, pulse, pulse)
+        glColor3f(0.0, 1.0, 0.2)  # Bright green core
+        glutSolidSphere(REPAIR_ITEM_RADIUS * 0.8, 32, 32)
+        glPopMatrix()
+        
+        # Rotating inner cube
+        glPushMatrix()
+        glRotatef(current_time * 180, 1, 1, 0)  # Rotate on two axes
+        glColor3f(0.8, 1.0, 0.8)  # Light green
+        glutWireCube(REPAIR_ITEM_RADIUS * 1.2)
+        glPopMatrix()
+        
+        # Outer wireframe sphere with phase-shifted pulse
+        glPushMatrix()
+        glScalef(1.2 + math.sin(current_time * 6) * 0.1, 
+                1.2 + math.cos(current_time * 6) * 0.1, 
+                1.2 + math.sin(current_time * 6) * 0.1)
+        glColor3f(1.0, 0.6, 0.0)  # Orange glow
+        glutWireSphere(REPAIR_ITEM_RADIUS * 1.3, 16, 16)
+        glPopMatrix()
+        
+        # Floating particles around the item
+        glPointSize(3)
+        glBegin(GL_POINTS)
+        glColor3f(0.4, 1.0, 0.4)  # Bright green particles
+        for i in range(20):
+            angle = math.radians(i * 18 + current_time * 180)
+            radius = REPAIR_ITEM_RADIUS * 1.5
+            x = radius * math.cos(angle) * math.sin(current_time * 4)
+            y = radius * math.sin(angle) * math.sin(current_time * 4)
+            z = radius * math.cos(current_time * 4)
+            glVertex3f(x, y, z)
+        glEnd()
+        
         glPopMatrix()
 
 def draw_repair_hud():
